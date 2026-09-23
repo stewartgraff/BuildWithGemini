@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SF Food & Bike Route Planner</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    #map, #routeMap { height: 420px; width: 100%; border-radius: 0.75rem; z-index: 10; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 9999px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen antialiased flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="p-2 bg-white/10 rounded-xl backdrop-blur-sm">
+          <i data-lucide="bike" class="w-6 h-6"></i>
+        </span>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">SF Bike & Bite Planner</h1>
+          <p class="text-xs text-emerald-100">Zero-Backtracking Food Rides with Scenic Park Picnics</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button id="btn-header-new-trip" class="text-xs bg-white/15 hover:bg-white/25 border border-white/20 text-white px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          <span>New Trip</span>
+        </button>
+        <a href="/dev-ui/" target="_blank" class="text-xs bg-white text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition font-medium shadow-sm flex items-center space-x-1">
+          <span>Agent Playground</span>
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full" id="planner-section">
+
+    <!-- Stepper Navigation -->
+    <div class="grid grid-cols-3 gap-2 sm:gap-4 mb-6 text-center text-xs sm:text-sm font-semibold">
+      <div id="step-tab-1" class="py-2.5 px-3 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-800 flex items-center justify-center space-x-2 shadow-sm transition">
+        <span class="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">1</span>
+        <span>Choose Theme</span>
+      </div>
+      <div id="step-tab-2" class="py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white text-slate-500 flex items-center justify-center space-x-2 transition">
+        <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">2</span>
+        <span>Select Stops & Map</span>
+      </div>
+      <div id="step-tab-3" class="py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white text-slate-500 flex items-center justify-center space-x-2 transition">
+        <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">3</span>
+        <span>Itinerary & Route</span>
+      </div>
+    </div>
+
+    <!-- STEP 1: Food Theme Picker -->
+    <section id="step-1" class="space-y-6">
+      <!-- Theme Selection Header & Shuffle -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="sparkles" class="w-5 h-5 text-amber-500"></i>
+              What are you craving for today's ride?
+            </h2>
+            <p class="text-sm text-slate-500 mt-1">Pick an original curated theme or roll for new inspirations.</p>
+          </div>
+          <button id="btn-shuffle-themes" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition shadow-sm">
+            <i data-lucide="refresh-cw" class="w-4 h-4" id="shuffle-icon"></i>
+            <span>Generate New Themes</span>
+          </button>
+        </div>
+
+        <!-- Suggested Themes Cards -->
+        <div id="theme-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+          <!-- Populated by JS -->
+          <div class="animate-pulse bg-slate-100 h-28 rounded-xl"></div>
+          <div class="animate-pulse bg-slate-100 h-28 rounded-xl"></div>
+        </div>
+
+        <!-- Custom Theme Input -->
+        <div class="mt-6 pt-5 border-t border-slate-100">
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Or enter your own custom food theme:</label>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+              <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400"></i>
+              <input type="text" id="custom-theme-input" placeholder="e.g. Sourdough bread, Matcha lattes, Artisanal chocolate, Vegan pastries..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+            </div>
+            <button id="btn-apply-custom-theme" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition shrink-0">
+              Use Custom Theme
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: Configure Route & Pick Stops on Interactive Map -->
+    <section id="step-2" class="hidden space-y-6">
+      
+      <!-- Top Config Bar -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">Active Theme</span>
+            <span id="active-theme-display" class="font-bold text-slate-800 text-sm">Chinatown Dumplings</span>
+          </div>
+          <button id="btn-change-theme" class="text-xs font-semibold text-slate-500 hover:text-emerald-600 transition flex items-center space-x-1">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+            <span>Change Theme</span>
+          </button>
+        </div>
+
+        <!-- Trip Parameters Form -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <!-- Start Location -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-600"></i>
+              Start Location
+            </label>
+            <input type="text" id="input-start-loc" value="Fort Mason, San Francisco, CA" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+
+          <!-- End Location -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <i data-lucide="flag" class="w-3.5 h-3.5 text-rose-600"></i>
+              End Location (Optional)
+            </label>
+            <input type="text" id="input-end-loc" placeholder="Leave empty to loop to start" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+
+          <!-- Start Time -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600"></i>
+              Start Time
+            </label>
+            <select id="select-start-time" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="08:30 AM">8:30 AM</option>
+              <option value="09:00 AM">9:00 AM</option>
+              <option value="09:30 AM">9:30 AM</option>
+              <option value="10:00 AM" selected>10:00 AM (Recommended)</option>
+              <option value="10:30 AM">10:30 AM</option>
+              <option value="11:00 AM">11:00 AM</option>
+              <option value="11:30 AM">11:30 AM</option>
+              <option value="12:00 PM">12:00 PM</option>
+            </select>
+          </div>
+
+          <!-- Food Spot Preferences: Min & Max -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <i data-lucide="utensils" class="w-3.5 h-3.5 text-amber-500"></i>
+              Food Spots (Min / Max)
+            </label>
+            <div class="flex items-center space-x-2">
+              <select id="select-min-food" class="w-1/2 px-2 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option value="1">Min: 1</option>
+                <option value="2">Min: 2</option>
+                <option value="3" selected>Min: 3</option>
+                <option value="4">Min: 4</option>
+                <option value="5">Min: 5</option>
+              </select>
+              <select id="select-max-food" class="w-1/2 px-2 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option value="2">Max: 2</option>
+                <option value="3">Max: 3</option>
+                <option value="4">Max: 4</option>
+                <option value="5" selected>Max: 5</option>
+                <option value="6">Max: 6</option>
+                <option value="8">Max: 8</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Park Preferences: Min & Max -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <i data-lucide="trees" class="w-3.5 h-3.5 text-emerald-600"></i>
+              Park Stops (Min / Max)
+            </label>
+            <div class="flex items-center space-x-2">
+              <select id="select-min-parks" class="w-1/2 px-2 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="0">Min: 0</option>
+                <option value="1" selected>Min: 1</option>
+                <option value="2">Min: 2</option>
+              </select>
+              <select id="select-max-parks" class="w-1/2 px-2 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="1">Max: 1</option>
+                <option value="2" selected>Max: 2</option>
+                <option value="3">Max: 3</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Selection Area: List + Map Split View -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left: Stops Picker & Custom Spot Input (5 cols) -->
+        <div class="lg:col-span-5 space-y-4">
+
+          <!-- Add Custom Location Field -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-600"></i>
+              Add Custom Stop
+            </label>
+            <div class="flex gap-2">
+              <input type="text" id="input-custom-stop" placeholder="e.g. Ritual Coffee Roasters, Golden Gate Park" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <button id="btn-add-custom-stop" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shrink-0 transition">
+                Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Candidate Stops List -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <i data-lucide="utensils" class="w-4 h-4 text-amber-500"></i>
+                Suggested Food Stops
+                <span id="food-count-badge" class="ml-1 text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-semibold">0 selected</span>
+              </h3>
+              <span id="food-requirement-notice" class="text-[11px] text-amber-600 font-medium">Select 3-5 spots</span>
+            </div>
+
+            <div id="food-spots-list" class="space-y-2 max-h-56 overflow-y-auto custom-scroll pr-1">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Scenic Parks List -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <i data-lucide="trees" class="w-4 h-4 text-emerald-600"></i>
+                Scenic Picnic Parks
+                <span id="park-count-badge" class="ml-1 text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">0 selected</span>
+              </h3>
+              <span id="park-requirement-notice" class="text-[11px] text-amber-600 font-medium">Select 1-2 parks</span>
+            </div>
+
+            <div id="parks-list" class="space-y-2 max-h-52 overflow-y-auto custom-scroll pr-1">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Plan Button Action Box -->
+          <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+            <div class="text-xs text-emerald-800 mb-2 font-medium">
+              <span id="selected-summary-count">0</span> stops selected (Includes <span id="selected-parks-count">0</span> park)
+            </div>
+            <button id="btn-plan-route" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2">
+              <i data-lucide="compass" class="w-4 h-4"></i>
+              <span>Plan & Optimize Route (Zero Backtracking)</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Right: Interactive Leaflet Map (7 cols) -->
+        <div class="lg:col-span-7">
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 sticky top-20">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="map" class="w-4 h-4 text-emerald-600"></i>
+                <h3 class="text-sm font-bold text-slate-800">Route Map View</h3>
+              </div>
+              <div class="flex items-center gap-3 text-xs text-slate-500">
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Food</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span> Park</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span> Start</span>
+              </div>
+            </div>
+            <div id="map"></div>
+            <p class="text-[11px] text-slate-400 mt-2 text-center">
+              Click any pin to inspect venue details and add/remove it from your bike ride.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- STEP 3: Finalized Itinerary & Optimized Route Presentation -->
+    <section id="step-3" class="hidden space-y-6">
+
+      <!-- Route Header Summary Banner -->
+      <div class="bg-gradient-to-r from-emerald-600 to-teal-800 rounded-2xl p-6 text-white shadow-md">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span class="inline-flex items-center gap-1 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-semibold mb-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+              Route Optimized for Casual Cycling
+            </span>
+            <h2 id="itinerary-title" class="text-2xl font-bold tracking-tight">Your SF Food Bike Itinerary</h2>
+            <p id="itinerary-subtitle" class="text-sm text-emerald-100 mt-1">Starting from Fort Mason</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <a id="btn-open-google-maps" href="#" target="_blank" class="px-4 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl font-bold text-sm shadow-sm transition flex items-center gap-2">
+              <i data-lucide="navigation" class="w-4 h-4 text-emerald-600"></i>
+              <span>Open in Google Maps Bike</span>
+            </a>
+            <button id="btn-modify-trip" class="px-4 py-2.5 bg-emerald-500/30 hover:bg-emerald-500/50 border border-emerald-300/30 text-white rounded-xl font-semibold text-sm transition flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="sliders" class="w-4 h-4"></i>
+              <span>Modify Stops</span>
+            </button>
+            <button id="btn-step3-new-trip" class="px-4 py-2.5 bg-white/20 hover:bg-white/30 border border-white/30 text-white rounded-xl font-semibold text-sm transition flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+              <span>New Trip</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Metrics Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/20 text-center">
+          <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+            <div class="text-xs text-emerald-100">Total Duration</div>
+            <div id="stat-total-duration" class="text-lg font-bold">2.5 hrs</div>
+          </div>
+          <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+            <div class="text-xs text-emerald-100">Departure & Finish</div>
+            <div id="stat-time-window" class="text-lg font-bold">10:00 AM - 12:30 PM</div>
+          </div>
+          <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+            <div class="text-xs text-emerald-100">Total Stops</div>
+            <div id="stat-total-stops" class="text-lg font-bold">4 stops</div>
+          </div>
+          <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+            <div class="text-xs text-emerald-100">Route Flow</div>
+            <div id="stat-route-type" class="text-lg font-bold">Round-Trip Loop</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule Table & Route Map Split -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Detailed Itinerary Timeline (7 cols) -->
+        <div class="lg:col-span-7 bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+          <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <i data-lucide="calendar" class="w-5 h-5 text-emerald-600"></i>
+            Turn-by-Turn Timetable & Open Hours Verification
+          </h3>
+
+          <div id="itinerary-timeline" class="space-y-4">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- SF Cycling Tips Card -->
+          <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-2">
+            <div class="font-bold text-slate-800 flex items-center gap-1.5">
+              <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
+              San Francisco Cycling Tips
+            </div>
+            <p>• <strong>The Wiggle:</strong> When cycling between Duboce Park and Alamo Square/Panhandle, take Duboce $\to$ Steiner $\to$ Waller to minimize hill climb grades.</p>
+            <p>• <strong>Microclimates:</strong> The Marina and Embarcadero are breezy while the Mission is warm and sunny—pack a windbreaker!</p>
+          </div>
+        </div>
+
+        <!-- Route Visualization Map (5 cols) -->
+        <div class="lg:col-span-5 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 sticky top-20">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <i data-lucide="milestone" class="w-4 h-4 text-emerald-600"></i>
+              Ordered Route Progression
+            </h3>
+            <span class="text-[11px] bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Zero-Backtracking Path</span>
+          </div>
+          <div id="routeMap"></div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 mt-10">
+    Built with Google Agent Development Kit & Gemini • San Francisco Casual Bike Tour Planner
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    // State management
+    const state = {
+      themes: [],
+      currentTheme: "Chinatown Alleyways & Dumpling Roll",
+      candidateFoodSpots: [],
+      candidateParks: [],
+      selectedStops: new Map(), // key: name, val: stop obj
+      minFoodSpots: 3,
+      maxFoodSpots: 5,
+      minParks: 1,
+      maxParks: 2,
+      startLocation: "Fort Mason, San Francisco, CA",
+      endLocation: "",
+      startTime: "10:00 AM",
+      calculatedRoute: null,
+      leafletMap: null,
+      leafletRouteMap: null,
+      mapMarkers: [],
+      routePolyline: null
+    };
+
+    // Initialize UI
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      fetchThemes();
+      setupEventListeners();
+    });
+
+    function setupEventListeners() {
+      // Step 1
+      document.getElementById("btn-shuffle-themes").addEventListener("click", () => {
+        const icon = document.getElementById("shuffle-icon");
+        icon.classList.add("animate-spin");
+        fetchThemes().then(() => icon.classList.remove("animate-spin"));
+      });
+
+      document.getElementById("btn-apply-custom-theme").addEventListener("click", () => {
+        const custom = document.getElementById("custom-theme-input").value.trim();
+        if (custom) {
+          selectTheme(custom);
+        }
+      });
+
+      // Step 2 controls
+      document.getElementById("btn-change-theme").addEventListener("click", () => goToStep(1));
+      document.getElementById("btn-modify-trip").addEventListener("click", () => goToStep(2));
+
+      document.getElementById("btn-add-custom-stop").addEventListener("click", handleAddCustomStop);
+      document.getElementById("input-custom-stop").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") handleAddCustomStop();
+      });
+
+      document.getElementById("select-min-food").addEventListener("change", (e) => {
+        state.minFoodSpots = parseInt(e.target.value);
+        if (state.currentTheme) fetchLocationsForTheme(state.currentTheme, true);
+        updateFoodNotice();
+      });
+      document.getElementById("select-max-food").addEventListener("change", (e) => {
+        state.maxFoodSpots = parseInt(e.target.value);
+        if (state.currentTheme) fetchLocationsForTheme(state.currentTheme, true);
+        updateFoodNotice();
+      });
+
+      document.getElementById("select-min-parks").addEventListener("change", (e) => {
+        state.minParks = parseInt(e.target.value);
+        if (state.currentTheme) fetchLocationsForTheme(state.currentTheme, true);
+        updateParkNotice();
+      });
+      document.getElementById("select-max-parks").addEventListener("change", (e) => {
+        state.maxParks = parseInt(e.target.value);
+        if (state.currentTheme) fetchLocationsForTheme(state.currentTheme, true);
+        updateParkNotice();
+      });
+
+      document.getElementById("input-start-loc").addEventListener("change", (e) => {
+        state.startLocation = e.target.value;
+      });
+      document.getElementById("input-end-loc").addEventListener("change", (e) => {
+        state.endLocation = e.target.value;
+      });
+      document.getElementById("select-start-time").addEventListener("change", (e) => {
+        state.startTime = e.target.value;
+      });
+
+      document.getElementById("btn-plan-route").addEventListener("click", executePlanRoute);
+
+      // New Trip buttons
+      document.getElementById("btn-header-new-trip").addEventListener("click", resetTripToStepOne);
+      const step3NewTrip = document.getElementById("btn-step3-new-trip");
+      if (step3NewTrip) step3NewTrip.addEventListener("click", resetTripToStepOne);
+    }
+
+    function resetTripToStepOne() {
+      // Reset state
+      state.currentTheme = "";
+      state.candidateFoodSpots = [];
+      state.candidateParks = [];
+      state.selectedStops.clear();
+      state.calculatedRoute = null;
+      state.minFoodSpots = 3;
+      state.maxFoodSpots = 5;
+      state.minParks = 1;
+      state.maxParks = 2;
+      state.startLocation = "Fort Mason, San Francisco, CA";
+      state.endLocation = "";
+      state.startTime = "10:00 AM";
+
+      // Reset form controls
+      const inputCustomTheme = document.getElementById("custom-theme-input");
+      if (inputCustomTheme) inputCustomTheme.value = "";
+
+      const inputStart = document.getElementById("input-start-loc");
+      if (inputStart) inputStart.value = "Fort Mason, San Francisco, CA";
+
+      const inputEnd = document.getElementById("input-end-loc");
+      if (inputEnd) inputEnd.value = "";
+
+      const selectTime = document.getElementById("select-start-time");
+      if (selectTime) selectTime.value = "10:00 AM";
+
+      const selectMinFood = document.getElementById("select-min-food");
+      if (selectMinFood) selectMinFood.value = "3";
+
+      const selectMaxFood = document.getElementById("select-max-food");
+      if (selectMaxFood) selectMaxFood.value = "5";
+
+      const selectMinParks = document.getElementById("select-min-parks");
+      if (selectMinParks) selectMinParks.value = "1";
+
+      const selectMaxParks = document.getElementById("select-max-parks");
+      if (selectMaxParks) selectMaxParks.value = "2";
+
+      const inputCustomStop = document.getElementById("input-custom-stop");
+      if (inputCustomStop) inputCustomStop.value = "";
+
+      // Reset Step 2 lists and indicators
+      const foodList = document.getElementById("food-spots-list");
+      if (foodList) foodList.innerHTML = "";
+      const parksList = document.getElementById("parks-list");
+      if (parksList) parksList.innerHTML = "";
+
+      const foodCountBadge = document.getElementById("food-count-badge");
+      if (foodCountBadge) foodCountBadge.textContent = "0 available";
+      const parkCountBadge = document.getElementById("park-count-badge");
+      if (parkCountBadge) parkCountBadge.textContent = "0 selected";
+      const selectedSummaryCount = document.getElementById("selected-summary-count");
+      if (selectedSummaryCount) selectedSummaryCount.textContent = "0";
+      const selectedParksCount = document.getElementById("selected-parks-count");
+      if (selectedParksCount) selectedParksCount.textContent = "0";
+
+      // Clear map markers and polyline
+      if (state.leafletMap && state.mapMarkers) {
+        state.mapMarkers.forEach(m => state.leafletMap.removeLayer(m));
+        state.mapMarkers = [];
+      }
+      if (state.leafletRouteMap && state.routePolyline) {
+        state.leafletRouteMap.removeLayer(state.routePolyline);
+        state.routePolyline = null;
+      }
+
+      // Reset Step 3 itinerary timeline
+      const timeline = document.getElementById("itinerary-timeline");
+      if (timeline) timeline.innerHTML = "";
+
+      // Fetch fresh themes and navigate back to Step 1
+      fetchThemes();
+      goToStep(1);
+    }
+
+    function goToStep(stepNumber) {
+      document.getElementById("step-1").classList.add("hidden");
+      document.getElementById("step-2").classList.add("hidden");
+      document.getElementById("step-3").classList.add("hidden");
+
+      // Tabs styling
+      for (let i = 1; i <= 3; i++) {
+        const tab = document.getElementById(`step-tab-${i}`);
+        if (i === stepNumber) {
+          tab.className = "py-2.5 px-3 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-800 flex items-center justify-center space-x-2 shadow-sm font-semibold transition";
+          tab.querySelector("span").className = "w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs";
+        } else if (i < stepNumber) {
+          tab.className = "py-2.5 px-3 rounded-xl border-2 border-emerald-200 bg-emerald-50/50 text-emerald-700 flex items-center justify-center space-x-2 transition font-medium cursor-pointer";
+          tab.querySelector("span").className = "w-6 h-6 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center text-xs";
+        } else {
+          tab.className = "py-2.5 px-3 rounded-xl border-2 border-slate-200 bg-white text-slate-500 flex items-center justify-center space-x-2 transition";
+          tab.querySelector("span").className = "w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs";
+        }
+      }
+
+      document.getElementById(`step-${stepNumber}`).classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (stepNumber === 2 && state.leafletMap) {
+        setTimeout(() => state.leafletMap.invalidateSize(), 200);
+      }
+      if (stepNumber === 3 && state.leafletRouteMap) {
+        setTimeout(() => state.leafletRouteMap.invalidateSize(), 200);
+      }
+    }
+
+    // Step 1: Themes
+    async function fetchThemes() {
+      try {
+        const res = await fetch("/api/themes?count=4&shuffle=true");
+        const data = await res.json();
+        state.themes = data.themes || [];
+        renderThemes(state.themes);
+      } catch (err) {
+        console.error("Failed to load themes:", err);
+      }
+    }
+
+    function renderThemes(themes) {
+      const container = document.getElementById("theme-cards-container");
+      container.innerHTML = themes.map(t => `
+        <div onclick="selectTheme('${t.title.replace(/'/g, "\\'")}')" class="group cursor-pointer bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md rounded-2xl p-5 transition flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                ${t.type === "creative_specialty" ? "Original Theme" : "Classic Favorite"}
+              </span>
+              <span class="text-xs text-slate-400 flex items-center gap-1">
+                <i data-lucide="clock" class="w-3 h-3"></i> ${t.best_ride_window.split("(")[0]}
+              </span>
+            </div>
+            <h3 class="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition">${t.title}</h3>
+            <p class="text-xs text-slate-500 mt-1 line-clamp-2">${t.summary}</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+            <span class="flex items-center gap-1 text-emerald-700 font-medium">
+              <i data-lucide="trees" class="w-3.5 h-3.5"></i> Picnic: ${t.recommended_park}
+            </span>
+            <span class="font-semibold text-emerald-600 flex items-center gap-0.5 group-hover:translate-x-1 transition">
+              Select <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            </span>
+          </div>
+        </div>
+      `).join("");
+      lucide.createIcons();
+    }
+
+    async function selectTheme(themeTitle) {
+      state.currentTheme = themeTitle;
+      document.getElementById("active-theme-display").textContent = themeTitle;
+      state.selectedStops.clear();
+
+      goToStep(2);
+      initStep2Map();
+      await fetchLocationsForTheme(themeTitle);
+    }
+
+    // Step 2: Fetch Locations & Parks
+    async function fetchLocationsForTheme(themeTitle, isCriteriaChange = false) {
+      try {
+        const res = await fetch("/api/locations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            theme: themeTitle,
+            min_food_spots: state.minFoodSpots,
+            max_food_spots: state.maxFoodSpots,
+            min_parks: state.minParks,
+            max_parks: state.maxParks
+          })
+        });
+        const data = await res.json();
+        state.candidateFoodSpots = data.food_spots || [];
+        state.candidateParks = data.parks || [];
+
+        if (isCriteriaChange) {
+          // Keep user custom stops
+          const customStops = Array.from(state.selectedStops.values()).filter(s => 
+            !state.candidateFoodSpots.some(c => c.name === s.name) && 
+            !state.candidateParks.some(c => c.name === s.name)
+          );
+
+          // Retain valid selections that still exist in new candidate sets
+          const validFoods = state.candidateFoodSpots.filter(s => state.selectedStops.has(s.name));
+          const validParks = state.candidateParks.filter(p => state.selectedStops.has(p.name));
+
+          state.selectedStops.clear();
+          customStops.forEach(s => state.selectedStops.set(s.name, s));
+
+          // Ensure selected food spots meet minFoodSpots and don't exceed maxFoodSpots
+          const targetFoodCount = Math.min(Math.max(validFoods.length, state.minFoodSpots), state.maxFoodSpots);
+          const foodsToSelect = [...validFoods];
+          for (const s of state.candidateFoodSpots) {
+            if (foodsToSelect.length >= targetFoodCount) break;
+            if (!foodsToSelect.some(f => f.name === s.name)) {
+              foodsToSelect.push(s);
+            }
+          }
+          foodsToSelect.slice(0, state.maxFoodSpots).forEach(s => state.selectedStops.set(s.name, s));
+
+          // Ensure selected parks meet minParks and don't exceed maxParks
+          const targetParkCount = Math.min(Math.max(validParks.length, state.minParks), state.maxParks);
+          const parksToSelect = [...validParks];
+          for (const p of state.candidateParks) {
+            if (parksToSelect.length >= targetParkCount) break;
+            if (!parksToSelect.some(existing => existing.name === p.name)) {
+              parksToSelect.push(p);
+            }
+          }
+          parksToSelect.slice(0, state.maxParks).forEach(p => state.selectedStops.set(p.name, p));
+
+        } else if (state.selectedStops.size === 0) {
+          // Initial selection on theme choice
+          const autoSelectCount = Math.min(state.minFoodSpots, state.candidateFoodSpots.length);
+          state.candidateFoodSpots.slice(0, autoSelectCount).forEach(s => state.selectedStops.set(s.name, s));
+          if (state.candidateParks.length > 0 && state.minParks > 0) {
+            state.candidateParks.slice(0, Math.min(state.minParks, state.candidateParks.length)).forEach(p => {
+              state.selectedStops.set(p.name, p);
+            });
+          }
+        }
+
+        renderStopsList();
+        updateMapMarkers();
+        updateSelectedSummary();
+      } catch (err) {
+        console.error("Failed to load locations:", err);
+      }
+    }
+
+    function renderStopsList() {
+      // Food List
+      const foodList = document.getElementById("food-spots-list");
+      foodList.innerHTML = state.candidateFoodSpots.map(s => {
+        const checked = state.selectedStops.has(s.name) ? "checked" : "";
+        return `
+          <div onclick="toggleStop('${s.name.replace(/'/g, "\\'")}', 'food')" class="p-2.5 rounded-xl border ${checked ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-white hover:bg-slate-50'} transition cursor-pointer flex items-start gap-2.5">
+            <input type="checkbox" ${checked} class="mt-1 h-4 w-4 rounded text-amber-500 focus:ring-amber-400 border-slate-300 pointer-events-none">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-800 truncate">${s.name}</span>
+                <span class="text-[10px] text-slate-400">${s.neighborhood}</span>
+              </div>
+              <p class="text-[11px] text-slate-500 truncate">${s.specialty || s.address}</p>
+              <div class="text-[10px] text-emerald-700 font-medium mt-0.5">🕒 ${s.hours}</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // Parks List
+      const parksList = document.getElementById("parks-list");
+      parksList.innerHTML = state.candidateParks.map(p => {
+        const checked = state.selectedStops.has(p.name) ? "checked" : "";
+        return `
+          <div onclick="toggleStop('${p.name.replace(/'/g, "\\'")}', 'park')" class="p-2.5 rounded-xl border ${checked ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-200 bg-white hover:bg-slate-50'} transition cursor-pointer flex items-start gap-2.5">
+            <input type="checkbox" ${checked} class="mt-1 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 pointer-events-none">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-800 truncate">${p.name}</span>
+                <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100/60 px-1.5 py-0.2 rounded">Park</span>
+              </div>
+              <p class="text-[11px] text-slate-500 truncate">${p.specialty || p.amenities}</p>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("food-count-badge").textContent = `${state.candidateFoodSpots.length} available`;
+    }
+
+    function toggleStop(name, type) {
+      if (state.selectedStops.has(name)) {
+        state.selectedStops.delete(name);
+      } else {
+        let stopObj = state.candidateFoodSpots.find(s => s.name === name) || state.candidateParks.find(p => p.name === name);
+        if (stopObj) state.selectedStops.set(name, stopObj);
+      }
+      renderStopsList();
+      updateMapMarkers();
+      updateSelectedSummary();
+    }
+
+    function updateSelectedSummary() {
+      const stops = Array.from(state.selectedStops.values());
+      const foodCount = stops.filter(s => s.type !== "park").length;
+      const parkCount = stops.filter(s => s.type === "park").length;
+
+      document.getElementById("selected-summary-count").textContent = stops.length;
+      document.getElementById("selected-parks-count").textContent = parkCount;
+      document.getElementById("food-count-badge").textContent = `${foodCount} selected (${state.candidateFoodSpots.length} available)`;
+      document.getElementById("park-count-badge").textContent = `${parkCount} selected`;
+
+      // Food requirement status
+      const foodNotice = document.getElementById("food-requirement-notice");
+      if (foodCount < state.minFoodSpots) {
+        foodNotice.textContent = `Need at least ${state.minFoodSpots} food spots (${state.minFoodSpots - foodCount} more)`;
+        foodNotice.className = "text-[11px] text-rose-600 font-bold";
+      } else if (foodCount > state.maxFoodSpots) {
+        foodNotice.textContent = `Max is ${state.maxFoodSpots} food spots (remove ${foodCount - state.maxFoodSpots})`;
+        foodNotice.className = "text-[11px] text-amber-600 font-bold";
+      } else {
+        foodNotice.textContent = `Meets target (${state.minFoodSpots}-${state.maxFoodSpots} spots)`;
+        foodNotice.className = "text-[11px] text-emerald-600 font-semibold";
+      }
+
+      // Park requirement status
+      const parkNotice = document.getElementById("park-requirement-notice");
+      if (parkCount < state.minParks) {
+        parkNotice.textContent = `Need at least ${state.minParks} park (${state.minParks - parkCount} more)`;
+        parkNotice.className = "text-[11px] text-rose-600 font-bold";
+      } else if (parkCount > state.maxParks) {
+        parkNotice.textContent = `Max is ${state.maxParks} parks (remove ${parkCount - state.maxParks})`;
+        parkNotice.className = "text-[11px] text-amber-600 font-bold";
+      } else {
+        parkNotice.textContent = `Meets target (${state.minParks}-${state.maxParks} parks)`;
+        parkNotice.className = "text-[11px] text-emerald-600 font-semibold";
+      }
+    }
+
+    function updateFoodNotice() {
+      updateSelectedSummary();
+    }
+
+    function updateParkNotice() {
+      updateSelectedSummary();
+    }
+
+
+    async function handleAddCustomStop() {
+      const input = document.getElementById("input-custom-stop");
+      const venueName = input.value.trim();
+      if (!venueName) return;
+
+      try {
+        const res = await fetch("/api/custom-location", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ location_name: venueName })
+        });
+        const customData = await res.json();
+        
+        const customSpot = {
+          name: customData.name,
+          address: customData.address,
+          neighborhood: customData.neighborhood || "San Francisco",
+          hours: customData.hours,
+          open_time: customData.open_time,
+          close_time: customData.close_time,
+          specialty: customData.specialty,
+          type: customData.type || "food",
+          lat: customData.lat,
+          lng: customData.lng
+        };
+
+        if (customSpot.type === "park") {
+          state.candidateParks.unshift(customSpot);
+        } else {
+          state.candidateFoodSpots.unshift(customSpot);
+        }
+        state.selectedStops.set(customSpot.name, customSpot);
+        input.value = "";
+        
+        renderStopsList();
+        updateMapMarkers();
+        updateSelectedSummary();
+
+        // Pan to new marker
+        if (state.leafletMap && customSpot.lat && customSpot.lng) {
+          state.leafletMap.panTo([customSpot.lat, customSpot.lng]);
+        }
+      } catch (err) {
+        console.error("Failed to add custom location:", err);
+      }
+    }
+
+    // Leaflet Map Initialization
+    function initStep2Map() {
+      if (state.leafletMap) return;
+      // Center SF
+      state.leafletMap = L.map("map").setView([37.7749, -122.4350], 13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(state.leafletMap);
+    }
+
+    function updateMapMarkers() {
+      if (!state.leafletMap) return;
+      state.mapMarkers.forEach(m => state.leafletMap.removeLayer(m));
+      state.mapMarkers = [];
+
+      const all = [...state.candidateFoodSpots, ...state.candidateParks];
+      all.forEach(spot => {
+        if (!spot.lat || !spot.lng) return;
+        const isSelected = state.selectedStops.has(spot.name);
+        const isPark = spot.type === "park";
+
+        const color = isSelected ? (isPark ? "#059669" : "#d97706") : "#94a3b8";
+        const iconHtml = `<div style="background-color: ${color}; width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-weight: bold;">${isPark ? '🌲' : '🍴'}</div>`;
+        
+        const customIcon = L.divIcon({
+          className: "custom-pin",
+          html: iconHtml,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        });
+
+        const marker = L.marker([spot.lat, spot.lng], { icon: customIcon }).addTo(state.leafletMap);
+        marker.bindPopup(`
+          <div class="text-xs">
+            <strong>${spot.name}</strong><br>
+            <span class="text-slate-500">${spot.specialty || spot.address}</span><br>
+            <button onclick="toggleStop('${spot.name.replace(/'/g, "\\'")}', '${spot.type}')" class="mt-1 px-2 py-0.5 rounded text-white font-semibold text-[10px] ${isSelected ? 'bg-rose-500' : 'bg-emerald-600'}">
+              ${isSelected ? 'Remove Stop' : 'Add to Route'}
+            </button>
+          </div>
+        `);
+        state.mapMarkers.push(marker);
+      });
+    }
+
+    // Step 3: Route Calculation & Presentation
+    async function executePlanRoute() {
+      const selectedArray = Array.from(state.selectedStops.values());
+      if (selectedArray.length === 0) {
+        alert("Please select at least 1 food spot or park to plan your ride.");
+        return;
+      }
+
+      const foodCount = selectedArray.filter(s => s.type !== "park").length;
+      if (foodCount < state.minFoodSpots) {
+        alert(`You requested at least ${state.minFoodSpots} food stop(s). Currently only ${foodCount} selected.`);
+        return;
+      }
+
+      const parkCount = selectedArray.filter(s => s.type === "park").length;
+      if (parkCount < state.minParks) {
+        alert(`You requested at least ${state.minParks} park stop(s). Please select a scenic park for your picnic!`);
+        return;
+      }
+
+      const planBtn = document.getElementById("btn-plan-route");
+      planBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-2"></i> Optimizing Route (TSP)...`;
+
+      try {
+        const payload = {
+          start_location: state.startLocation,
+          end_location: state.endLocation || null,
+          start_time: state.startTime,
+          selected_stops: selectedArray,
+          stop_duration_minutes: 20,
+          average_transit_minutes: 15,
+          return_to_start: !state.endLocation,
+          optimize_order: true
+        };
+
+        const res = await fetch("/api/plan-route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const routeData = await res.json();
+        state.calculatedRoute = routeData;
+
+        renderItinerary(routeData);
+        goToStep(3);
+        renderRouteMap(routeData);
+      } catch (err) {
+        console.error("Route planning failed:", err);
+        alert("Failed to calculate route schedule. Please try again.");
+      } finally {
+        planBtn.innerHTML = `<i data-lucide="compass" class="w-4 h-4 inline mr-2"></i> Plan & Optimize Route (Zero Backtracking)`;
+        lucide.createIcons();
+      }
+    }
+
+    function renderItinerary(route) {
+      document.getElementById("itinerary-title").textContent = `${state.currentTheme} Ride`;
+      document.getElementById("itinerary-subtitle").textContent = `Optimized flow from ${route.start_location} ${route.return_to_start ? '(Round-Trip Loop)' : 'to ' + route.end_location}`;
+      document.getElementById("btn-open-google-maps").href = route.google_maps_route_url;
+
+      document.getElementById("stat-total-duration").textContent = route.total_duration_formatted;
+      document.getElementById("stat-time-window").textContent = `${route.start_time} - ${route.end_time}`;
+      document.getElementById("stat-total-stops").textContent = `${route.number_of_stops} Stops + Loop`;
+      document.getElementById("stat-route-type").textContent = route.return_to_start ? "Round-Trip Loop" : "Point-to-Point";
+
+      const timeline = document.getElementById("itinerary-timeline");
+      timeline.innerHTML = route.itinerary.map((stop, idx) => {
+        let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
+        let iconName = "map-pin";
+
+        if (stop.type === "start") {
+          badgeColor = "bg-blue-50 text-blue-800 border-blue-200";
+          iconName = "flag";
+        } else if (stop.type === "end") {
+          badgeColor = "bg-purple-50 text-purple-800 border-purple-200";
+          iconName = "check-circle";
+        } else if (stop.type === "park") {
+          badgeColor = "bg-emerald-50 text-emerald-800 border-emerald-200";
+          iconName = "trees";
+        } else {
+          badgeColor = "bg-amber-50 text-amber-800 border-amber-200";
+          iconName = "utensils";
+        }
+
+        const openBadge = stop.is_open_at_arrival 
+          ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">✓ ${stop.open_status}</span>`
+          : `<span class="inline-flex items-center gap-1 text-[11px] text-rose-700 font-semibold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">⚠ ${stop.open_status}</span>`;
+
+        return `
+          <div class="relative pl-8 pb-4 border-l-2 ${idx === route.itinerary.length - 1 ? 'border-transparent' : 'border-slate-200'}">
+            <!-- Timeline Pin -->
+            <div class="absolute -left-[11px] top-0 w-5 h-5 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-[10px] ${stop.type === 'park' ? 'bg-emerald-600 text-white' : (stop.type === 'start' || stop.type === 'end' ? 'bg-slate-900 text-white' : 'bg-amber-500 text-white')} font-bold">
+              ${stop.stop_number}
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1.5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <div class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                  <span>${stop.name}</span>
+                  <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${badgeColor}">${stop.type}</span>
+                </div>
+                <div class="text-xs text-slate-600 font-semibold">
+                  ${stop.arrival_time ? `Arrive: ${stop.arrival_time}` : ''} ${stop.departure_time ? `• Depart: ${stop.departure_time}` : ''}
+                </div>
+              </div>
+
+              <div class="text-xs text-slate-500">${stop.address}</div>
+              
+              ${stop.specialty ? `<div class="text-xs text-amber-800 font-medium">🍴 Specialty: ${stop.specialty}</div>` : ''}
+              ${stop.notes ? `<div class="text-xs text-slate-600 italic">📌 ${stop.notes}</div>` : ''}
+
+              ${stop.type !== 'start' && stop.type !== 'end' ? `
+                <div class="pt-1.5 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-[11px] text-slate-500">Store Hours: ${stop.store_hours}</span>
+                  ${openBadge}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    function renderRouteMap(route) {
+      if (!state.leafletRouteMap) {
+        state.leafletRouteMap = L.map("routeMap").setView([37.7749, -122.4350], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(state.leafletRouteMap);
+      }
+
+      // Clear existing layers
+      if (state.routePolyline) {
+        state.leafletRouteMap.removeLayer(state.routePolyline);
+      }
+
+      const latlngs = [];
+      route.itinerary.forEach((stop, i) => {
+        if (stop.lat && stop.lng) {
+          latlngs.push([stop.lat, stop.lng]);
+          
+          const isPark = stop.type === "park";
+          const isStartEnd = stop.type === "start" || stop.type === "end";
+          const color = isStartEnd ? "#1e293b" : (isPark ? "#059669" : "#d97706");
+
+          const iconHtml = `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${i}</div>`;
+          const customIcon = L.divIcon({
+            className: "custom-pin",
+            html: iconHtml,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          });
+
+          L.marker([stop.lat, stop.lng], { icon: customIcon })
+            .addTo(state.leafletRouteMap)
+            .bindPopup(`<strong>Stop ${i}: ${stop.name}</strong><br>${stop.arrival_time ? 'Arrive ' + stop.arrival_time : ''}`);
+        }
+      });
+
+      if (latlngs.length > 1) {
+        state.routePolyline = L.polyline(latlngs, {
+          color: "#059669",
+          weight: 4,
+          opacity: 0.85,
+          dashArray: "6, 8"
+        }).addTo(state.leafletRouteMap);
+
+        state.leafletRouteMap.fitBounds(state.routePolyline.getBounds(), { padding: [30, 30] });
+      }
+    }
+  </script>
+</body>
+</html>
