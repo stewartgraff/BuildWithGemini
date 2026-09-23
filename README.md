@@ -13,6 +13,12 @@ Powered by Google DeepMind's Gemini and built with Google Agents SDK / FastAPI.
 - **Live Interactive UI**: 3-step planning wizard with split-view candidate selector, Leaflet.js interactive maps, custom venue addition, and turnkey turn-by-turn itinerary exportable to Google Maps Cycling.
 - **Store Hours & Timing Verification**: Automatically cross-references opening hours against arrival times for every stop on the tour.
 
+## Demo Walkthrough
+
+[![SF Bike & Bite Planner Walkthrough](demo_thumbnail.jpg)](demo_walkthrough.mp4)
+
+*A video walkthrough (`demo_walkthrough.mp4`) demonstrating theme generation, stop selection, Leaflet map interaction, zero-backtracking TSP optimization, and turn-by-turn itinerary presentation.*
+
 ## Project Structure
 
 ```
