@@ -15,9 +15,13 @@ Powered by Google DeepMind's Gemini and built with Google Agents SDK / FastAPI.
 
 ## Demo Walkthrough
 
-[![SF Bike & Bite Planner Walkthrough](demo_thumbnail.jpg)](demo_walkthrough.mp4)
+https://github.com/user-attachments/assets/ or view the recording directly:
 
-*A video walkthrough (`demo_walkthrough.mp4`) demonstrating theme generation, stop selection, Leaflet map interaction, zero-backtracking TSP optimization, and turn-by-turn itinerary presentation.*
+[![SF Bike & Bite Planner Walkthrough](demo_thumbnail.jpg)](https://github.com/stewartgraff/BuildWithGemini/raw/main/demo_walkthrough.mp4)
+
+🎬 **[Click here to watch or download the full demo video (`demo_walkthrough.mp4`)](https://github.com/stewartgraff/BuildWithGemini/raw/main/demo_walkthrough.mp4)**
+
+*Walkthrough highlights: Theme generation & shuffling $\to$ Adjusting min/max food & park constraints $\to$ Live Leaflet map re-rendering $\to$ Custom venue addition $\to$ Zero-backtracking TSP optimization $\to$ Turn-by-turn itinerary $\to$ New Trip reset.*
 
 ## Project Structure
 
